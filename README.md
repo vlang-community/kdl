@@ -1,6 +1,7 @@
 ## Description
 
-`kdl` implements a parser and serializer for [KDL 2.0](https://x.kdl.dev/spec/), a
+`kdl` implements a parser and serializer for [KDL 2.0](https://kdl.dev/spec/)
+([spec version 2.0.0, January 2026](https://kdl.dev/spec/)), a
 node-oriented document language. KDL occupies a similar niche to JSON, YAML,
 TOML, and XML, but uses a syntax that looks like CLI command invocations:
 
@@ -13,6 +14,44 @@ package {
   }
 }
 ```
+
+## Spec Compliance
+
+This library targets **KDL 2.0.0** ([spec](https://kdl.dev/spec/)) with an estimated **~95%+ compliance** across all feature categories.
+
+| Feature | Supported | Notes |
+|---------|-----------|-------|
+| Core Structure (nodes, doc) | ✅ | Nodes with name, entries, children |
+| Quoted Strings | ✅ | Full escape support (\n, \r, \t, \\, \", \b, \f, \u{...}, \xNN, \s) |
+| Raw Strings | ✅ | #"..."#, ##"..."##, ###"..."###, etc. |
+| Multi-line Strings | ✅ | """...""" with indent stripping and CRLF normalization |
+| Multi-line Raw Strings | ✅ | #"""..."""# |
+| Integer Literals | ✅ | Decimal, hex (0x), octal (0o), binary (0b) |
+| Float / Scientific Notation | ✅ | e/E notation |
+| Number Underscores | ✅ | 1_000, 0xFF_FF, 1.0_1e1_0, trailing underscores |
+| Boolean (#true / #false) | ✅ | Case-sensitive; bare true/false rejected |
+| Null (#null) | ✅ | Case-sensitive; bare null rejected |
+| Float Keywords (#inf, #-inf, #nan) | ✅ | Parsed to math.inf/nan |
+| Type Annotations | ✅ | (type)node, (type)value, (type)prop=val; reserved types accepted |
+| Properties (key=value) | ✅ | Strict mode; colon = identifier char (KDL 2.0) |
+| Children Blocks ({...}) | ✅ | Arbitrary nesting |
+| Line Comments (//) | ✅ | |
+| Block Comments (/* */) | ✅ | Nestable |
+| Slashdash Comments (/—) | ✅ | Nodes, entries, children |
+| Escaped Newlines (Line Continuation) | ✅ | Backslash at line end with optional \s |
+| Unicode Whitespace | ✅ | Hair space, narrow NBSP, math space, ideographic, etc. |
+| Unicode Newlines | ✅ | CR, LF, CRLF, LS (U+2028), PS (U+2029) |
+| UTF-8 BOM | ✅ | |
+| Version Marker | ✅ | /- kdl-version 1 and 2 |
+| Bare Identifier Rules | ✅ | Spec-compliant character validation |
+| C0 Control Character Rejection | ✅ | DEL and control chars rejected |
+| Semicolons as Node Separators | ✅ | |
+| Generator / Formatter | ✅ | Roundtrip preservation |
+| Marshaler / Unmarshaler | ✅ | Struct tags: arg, args, child, omitempty, rename |
+| Coercion Helpers | ✅ | as_string, as_int, as_f64, as_bool, is_null, etc. |
+| Relaxed Non-Compliant Modes | ✅ | nginx_syntax, yaml_toml_assignments, multiplier_suffixes |
+| Document Building | ✅ | Manual construction of Document/Node structure |
+| Error Handling | ✅ | KdlParseError with line/col/offset/msg |
 
 ## API
 
