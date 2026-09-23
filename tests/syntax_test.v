@@ -1,15 +1,20 @@
 // Adapted from tests/tokenizer_test.v of github.com/vlang-community/kdl
 // at commit 721a303, by Jengro777.
-module kdl
+module main
+
+import kdl
+import math
+
+const f64_inf = math.inf(1)
 
 fn syntax_rejects(src string) {
-	parse(src) or { return }
+	kdl.parse(src) or { return }
 	assert false, 'expected parse error for ${src}'
 }
 
 // syntax_first parses a document made of one node with one argument and returns it.
-fn syntax_first(src string) !Value {
-	doc := parse(src)!
+fn syntax_first(src string) !kdl.Value {
+	doc := kdl.parse(src)!
 	if doc.nodes.len != 1 || doc.nodes[0].arguments.len != 1 {
 		return error('expected one node with one argument: ${src}')
 	}
@@ -17,7 +22,7 @@ fn syntax_first(src string) !Value {
 }
 
 fn test_parse_single_node() {
-	doc := parse('my-node')!
+	doc := kdl.parse('my-node')!
 	assert doc.nodes.len == 1
 	assert doc.nodes[0].name == 'my-node'
 	assert doc.nodes[0].arguments.len == 0
@@ -25,22 +30,22 @@ fn test_parse_single_node() {
 }
 
 fn test_parse_node_arguments() {
-	doc := parse('name "Alice"')!
+	doc := kdl.parse('name "Alice"')!
 	assert doc.nodes[0].name == 'name'
 	assert doc.nodes[0].arguments.len == 1
-	doc2 := parse('nums 1 2 3 4')!
+	doc2 := kdl.parse('nums 1 2 3 4')!
 	assert doc2.nodes[0].arguments.map(it.as_int()?) == [i64(1), 2, 3, 4]
-	doc3 := parse('v 1 2 3 a b c')!
+	doc3 := kdl.parse('v 1 2 3 a b c')!
 	assert doc3.nodes[0].arguments.len == 6
 }
 
 fn test_parse_node_properties() {
-	doc := parse('config port=8080')!
+	doc := kdl.parse('config port=8080')!
 	assert doc.nodes[0].name == 'config'
 	assert doc.nodes[0].prop('port').as_int()? == 8080
-	doc2 := parse('config host="localhost" port=8080 debug=#true')!
+	doc2 := kdl.parse('config host="localhost" port=8080 debug=#true')!
 	assert doc2.nodes[0].properties.len == 3
-	doc3 := parse('node 1 key=val 2')!
+	doc3 := kdl.parse('node 1 key=val 2')!
 	assert doc3.nodes[0].arguments.len == 2
 	assert doc3.nodes[0].properties.len == 1
 }
@@ -102,7 +107,7 @@ fn test_value_keywords() {
 	assert syntax_first('v #true')!.as_bool()? == true
 	assert syntax_first('v #false')!.as_bool()? == false
 	assert syntax_first('v #null')!.is_null()
-	doc := parse('v #inf #-inf #nan')!
+	doc := kdl.parse('v #inf #-inf #nan')!
 	a := doc.nodes[0].arguments
 	assert a[0].as_f64()? == f64_inf
 	assert a[1].as_f64()? == -f64_inf
@@ -120,36 +125,36 @@ fn test_bare_keywords_rejected() {
 }
 
 fn test_children() {
-	assert parse('node {}')!.nodes[0].children.len == 0
-	doc := parse('parent { child "val" }')!
+	assert kdl.parse('node {}')!.nodes[0].children.len == 0
+	doc := kdl.parse('parent { child "val" }')!
 	assert doc.nodes[0].children.len == 1
 	assert doc.nodes[0].children[0].name == 'child'
-	assert parse('parent {\n  child1 "a"\n  child2 "b"\n}')!.nodes[0].children.len == 2
-	doc2 := parse('a {\n  b {\n    c "deep"\n  }\n}')!
+	assert kdl.parse('parent {\n  child1 "a"\n  child2 "b"\n}')!.nodes[0].children.len == 2
+	doc2 := kdl.parse('a {\n  b {\n    c "deep"\n  }\n}')!
 	assert doc2.nodes[0].children[0].children[0].name == 'c'
-	doc3 := parse('a { b }\nc { d }')!
+	doc3 := kdl.parse('a { b }\nc { d }')!
 	assert doc3.nodes.len == 2
 	assert doc3.nodes[0].children.len == 1
 	assert doc3.nodes[1].children.len == 1
 }
 
 fn test_semicolons() {
-	assert parse('parent { a "1"; b "2"; c "3" }')!.nodes[0].children.len == 3
-	assert parse('a; b; c')!.nodes.len == 3
-	assert parse('parent { a; b; c }')!.nodes[0].children.len == 3
+	assert kdl.parse('parent { a "1"; b "2"; c "3" }')!.nodes[0].children.len == 3
+	assert kdl.parse('a; b; c')!.nodes.len == 3
+	assert kdl.parse('parent { a; b; c }')!.nodes[0].children.len == 3
 }
 
 fn test_comments() {
-	assert parse('/* outer /* inner */ still */ node "val"')!.nodes[0].name == 'node'
-	doc := parse('/* /* /* inner */ still */ out */ node "val"')!
+	assert kdl.parse('/* outer /* inner */ still */ node "val"')!.nodes[0].name == 'node'
+	doc := kdl.parse('/* /* /* inner */ still */ out */ node "val"')!
 	assert doc.nodes.len == 1
 	assert doc.nodes[0].name == 'node'
-	assert parse('\ufeff// \u30b3\u30e1\u30f3\u30c8\nnode "val"')!.nodes[0].name == 'node'
+	assert kdl.parse('\ufeff// \u30b3\u30e1\u30f3\u30c8\nnode "val"')!.nodes[0].name == 'node'
 }
 
 fn test_slashdash() {
-	assert parse('node /- 1 2 3')!.nodes[0].arguments.len == 2
-	doc := parse('node a=1 /- b=2 c=3')!
+	assert kdl.parse('node /- 1 2 3')!.nodes[0].arguments.len == 2
+	doc := kdl.parse('node a=1 /- b=2 c=3')!
 	node := doc.nodes[0]
 	assert 'a' in node.properties
 	assert 'b' !in node.properties
@@ -157,15 +162,15 @@ fn test_slashdash() {
 }
 
 fn test_line_continuation() {
-	assert parse('node \\\n  arg1 arg2')!.nodes[0].arguments.len == 2
-	assert parse('node \\ // comment\n  arg1')!.nodes[0].arguments.len == 1
-	doc := parse('node \\\n\\\n  arg')!
+	assert kdl.parse('node \\\n  arg1 arg2')!.nodes[0].arguments.len == 2
+	assert kdl.parse('node \\ // comment\n  arg1')!.nodes[0].arguments.len == 1
+	doc := kdl.parse('node \\\n\\\n  arg')!
 	assert doc.nodes.len == 1
 	assert doc.nodes[0].arguments.len == 1
 }
 
 fn test_type_annotations() {
-	doc := parse('(person)node "name"')!
+	doc := kdl.parse('(person)node "name"')!
 	assert doc.nodes[0].ty? == 'person'
 	assert doc.nodes[0].name == 'node'
 	assert syntax_first('node (u8)123')!.ty? == 'u8'
@@ -175,18 +180,18 @@ fn test_type_annotations() {
 fn test_empty_documents() {
 	syntax_rejects('[')
 	for src in ['', '   \n  \n  ', '// comment\n/* block */'] {
-		assert parse(src)!.nodes.len == 0
+		assert kdl.parse(src)!.nodes.len == 0
 	}
 }
 
 fn test_multiple_top_level_nodes() {
-	assert parse('node1 "a"\nnode2 "b"\nnode3 "c"')!.nodes.len == 3
-	assert parse('my-node\n--flag\n.hidden')!.nodes.map(it.name) == ['my-node', '--flag', '.hidden']
+	assert kdl.parse('node1 "a"\nnode2 "b"\nnode3 "c"')!.nodes.len == 3
+	assert kdl.parse('my-node\n--flag\n.hidden')!.nodes.map(it.name) == ['my-node', '--flag', '.hidden']
 }
 
 fn test_spec_examples() {
 	src := 'package {\n  name my-pkg\n  version "1.2.3"\n  dependencies {\n    lodash "^3.2.1" optional=#true alias=underscore\n  }\n}'
-	doc := parse(src)!
+	doc := kdl.parse(src)!
 	assert doc.nodes[0].name == 'package'
 	assert doc.nodes[0].children.len == 3
 	lodash := doc.nodes[0].children[2].children[0]
@@ -194,18 +199,18 @@ fn test_spec_examples() {
 	assert lodash.prop('optional').as_bool()? == true
 	assert lodash.prop('alias').as_string()? == 'underscore'
 	ci := 'pipeline {\n  build {\n    image "rust:latest"\n    script "cargo build --release"\n  }\n  test {\n    image "rust:latest"\n    script "cargo test"\n  }\n}'
-	assert parse(ci)!.nodes[0].children.len == 2
+	assert kdl.parse(ci)!.nodes[0].children.len == 2
 }
 
 fn test_identifiers() {
 	for name in ['+enabled', '.hidden', '-', '.', '..', '+..', '+.foo', '-.foo', '~tilde', '!bang',
 		'%percent', '^caret', '&amp', '*star', '<angle', '>angle', 'True', 'Null', '_12', 'a,b'] {
-		doc := parse(name)!
+		doc := kdl.parse(name)!
 		assert doc.nodes.len == 1
 		assert doc.nodes[0].name == name
 	}
 	for src in ['node +inf', 'node +nan', 'node key:value'] {
-		doc := parse(src)!
+		doc := kdl.parse(src)!
 		assert doc.nodes.len == 1
 		assert doc.nodes[0].name == 'node'
 		assert doc.nodes[0].arg(0).as_string()? == src.all_after(' ')
@@ -236,17 +241,17 @@ fn test_negative_radix_round_trip() {
 		'v -0xFF': i64(-255)
 		'v -0o10': -8
 	} {
-		doc := parse(src)!
-		back := parse(doc.str())!
+		doc := kdl.parse(src)!
+		back := kdl.parse(doc.str())!
 		assert back.nodes[0].arg(0).as_int()? == want
 	}
 }
 
 fn test_quoted_node_names() {
-	doc := parse('"my node" 8080')!
+	doc := kdl.parse('"my node" 8080')!
 	assert doc.nodes[0].name == 'my node'
 	assert doc.nodes[0].arguments.len == 1
-	doc2 := parse('"server config" port=8080 host="localhost"')!
+	doc2 := kdl.parse('"server config" port=8080 host="localhost"')!
 	assert doc2.nodes[0].name == 'server config'
 	assert doc2.nodes[0].properties.keys().len == 2
 }

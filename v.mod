@@ -5,4 +5,5 @@ Module {
 	license: 'MIT'
 	repo_url: 'https://github.com/vlang/kdl'
 	dependencies: []
+	subdirs:      ['parser', 'writer', 'marshal']
 }

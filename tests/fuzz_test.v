@@ -1,7 +1,8 @@
 // Adapted from tests/roundtrip_fuzz_test.v of github.com/vlang-community/kdl
 // at commit 721a303, by Jengro777.
-module kdl
+module main
 
+import kdl
 import rand
 
 fn test_roundtrip_fuzz() {
@@ -10,12 +11,12 @@ fn test_roundtrip_fuzz() {
 	rng.seed([u32(20260716), u32(7)])
 	for i in 0 .. 100 {
 		src := fuzz_document(mut rng)
-		doc := parse(src) or {
+		doc := kdl.parse(src) or {
 			assert false, 'iter ${i}: generated source does not parse: ${err.msg()}\n${src}'
 			return
 		}
 		formatted := doc.str()
-		back := parse(formatted) or {
+		back := kdl.parse(formatted) or {
 			assert false, 'iter ${i}: could not re-parse formatted output: ${err.msg()}\nOriginal: ${src}\nFormatted: ${formatted}'
 			return
 		}

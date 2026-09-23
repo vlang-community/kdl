@@ -1,15 +1,25 @@
 // Adapted from tests/string_test.v and tests/unicode_test.v of github.com/vlang-community/kdl
 // at commit 721a303, by Jengro777.
-module kdl
+module main
+
+import kdl
+
+// is_bare_identifier reports whether the writer emits `s` without quotes: a
+// quoted string always starts with `"`, which a bare identifier never contains.
+fn is_bare_identifier(s string) bool {
+	return kdl.Node{
+		name: s
+	}.str() == s + '\n'
+}
 
 fn strings_rejects(src string) {
-	parse(src) or { return }
+	kdl.parse(src) or { return }
 	assert false, 'expected parse error for ${src}'
 }
 
 // strings_first parses a document made of one node with one string argument and returns it.
 fn strings_first(src string) !string {
-	doc := parse(src)!
+	doc := kdl.parse(src)!
 	if doc.nodes.len != 1 || doc.nodes[0].arguments.len != 1 {
 		return error('expected one node with one argument: ${src}')
 	}
@@ -61,7 +71,7 @@ fn test_multiline_raw_strings() {
 }
 
 fn test_multiline_raw_followed_by_node() {
-	doc := parse('md #"""\n  hello\n  """#\nnext-node')!
+	doc := kdl.parse('md #"""\n  hello\n  """#\nnext-node')!
 	assert doc.nodes.len == 2
 	assert doc.nodes[0].name == 'md'
 	assert doc.nodes[0].arguments.len == 1
@@ -88,14 +98,14 @@ fn test_writer_quotes_and_escapes() {
 		'\x7f':             '\\u{7f}'
 		'\x01':             '\\u{1}'
 	} {
-		out := Value{
+		out := kdl.Value{
 			data: s
 		}.str()
 		assert out == '"${want}"'
 		assert strings_first('v ${out}')! == s
 	}
 	// valid identifiers are written bare
-	assert Value{
+	assert kdl.Value{
 		data: 'hello'
 	}.str() == 'hello'
 }
@@ -141,14 +151,14 @@ fn test_bidi_control_literal_in_quoted_string_rejected() {
 }
 
 fn test_special_node_names() {
-	assert parse('_')!.nodes[0].name == '_'
-	doc := parse('\U0001F525 "val"')!
+	assert kdl.parse('_')!.nodes[0].name == '_'
+	doc := kdl.parse('\U0001F525 "val"')!
 	assert doc.nodes[0].name == '\U0001F525'
 	assert doc.nodes[0].arguments.len == 1
 }
 
 fn test_empty_quoted_property_key() {
-	doc := parse('node ""=val')!
+	doc := kdl.parse('node ""=val')!
 	assert '' in doc.nodes[0].properties
 	assert doc.nodes[0].prop('').as_string()? == 'val'
 }
@@ -161,7 +171,7 @@ fn test_multiline_close_line_trailers() {
 	}
 	for src in ['md #"""\n  hello\n  """# // this is a comment, not content\nextra-node',
 		'md #"""\n  hello\n  """# // comment\nworld'] {
-		doc := parse(src)!
+		doc := kdl.parse(src)!
 		assert doc.nodes.len == 2
 		assert doc.nodes[0].name == 'md'
 		assert doc.nodes[0].arg(0).as_string()? == 'hello'
@@ -171,12 +181,12 @@ fn test_multiline_close_line_trailers() {
 fn test_unicode_spaces_after_node_name() {
 	// NBSP, ideographic, thin, em and figure spaces
 	for sp in ['\u00a0', '\u3000', '\u2009', '\u2003', '\u2007'] {
-		doc := parse('node${sp}"val"')!
+		doc := kdl.parse('node${sp}"val"')!
 		assert doc.nodes[0].name == 'node'
 		assert doc.nodes[0].arg(0).as_string()? == 'val'
 	}
 }
 
 fn test_unicode_bom() {
-	assert parse('\ufeffnode "val"')!.nodes[0].name == 'node'
+	assert kdl.parse('\ufeffnode "val"')!.nodes[0].name == 'node'
 }

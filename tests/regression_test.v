@@ -1,15 +1,28 @@
 // Adapted from tests/spec_regression_test.v of github.com/vlang-community/kdl
 // at commit 721a303, by Jengro777.
-module kdl
+module main
+
+import kdl
+import math
+
+const f64_inf = math.inf(1)
+
+// is_bare_identifier reports whether the writer emits `s` without quotes: a
+// quoted string always starts with `"`, which a bare identifier never contains.
+fn is_bare_identifier(s string) bool {
+	return kdl.Node{
+		name: s
+	}.str() == s + '\n'
+}
 
 fn regression_rejects(src string) {
-	parse(src) or { return }
+	kdl.parse(src) or { return }
 	assert false, 'expected parse error for ${src}'
 }
 
 // regression_first parses a document made of one node with one argument and returns it.
-fn regression_first(src string) !Value {
-	doc := parse(src)!
+fn regression_first(src string) !kdl.Value {
+	doc := kdl.parse(src)!
 	if doc.nodes.len != 1 || doc.nodes[0].arguments.len != 1 {
 		return error('expected one node with one argument: ${src}')
 	}
@@ -60,10 +73,10 @@ fn test_underscores_in_integers() {
 }
 
 fn test_escline() {
-	doc := parse('node \\')!
+	doc := kdl.parse('node \\')!
 	assert doc.nodes.len == 1
 	assert doc.nodes[0].name == 'node'
-	doc2 := parse('node \\\n  arg1')!
+	doc2 := kdl.parse('node \\\n  arg1')!
 	assert doc2.nodes[0].arguments.len == 1
 }
 
@@ -84,8 +97,8 @@ fn test_multiline_unicode_newlines() {
 }
 
 fn test_bom() {
-	assert parse('\ufeffnode')!.nodes[0].name == 'node'
-	doc := parse('\ufeff/- kdl-version 2\nnode')!
+	assert kdl.parse('\ufeffnode')!.nodes[0].name == 'node'
+	doc := kdl.parse('\ufeff/- kdl-version 2\nnode')!
 	assert doc.nodes.len == 1
 	assert doc.nodes[0].name == 'node'
 	regression_rejects('n\ufeffode')
@@ -96,7 +109,7 @@ fn test_unicode_spaces_separate_entries() {
 	// hair, narrow NBSP and medium math spaces
 	for sp in ['\u00a0', '\u1680', '\u2000', '\u2001', '\u2002', '\u2004', '\u2005', '\u2006',
 		'\u2008', '\u200a', '\u202f', '\u205f'] {
-		doc := parse('node${sp}"val"')!
+		doc := kdl.parse('node${sp}"val"')!
 		assert doc.nodes[0].name == 'node'
 		assert doc.nodes[0].arguments.len == 1
 	}
@@ -104,35 +117,35 @@ fn test_unicode_spaces_separate_entries() {
 
 fn test_unicode_newlines_split_nodes() {
 	for nl in ['\u2028', '\u2029', '\u0085', '\r', '\r\n', '\x0b', '\x0c'] {
-		doc := parse('node1${nl}node2')!
+		doc := kdl.parse('node1${nl}node2')!
 		assert doc.nodes.len == 2
 		assert doc.nodes[0].name == 'node1'
 		assert doc.nodes[1].name == 'node2'
 	}
-	doc := parse('node1\rnode2\u2028node3')!
+	doc := kdl.parse('node1\rnode2\u2028node3')!
 	assert doc.nodes.map(it.name) == ['node1', 'node2', 'node3']
 }
 
 fn test_keyword_floats() {
-	doc := parse('v #inf #-inf #nan')!
+	doc := kdl.parse('v #inf #-inf #nan')!
 	a := doc.nodes[0].arguments
 	assert a[0].as_f64()? == f64_inf
 	assert a[1].as_f64()? == -f64_inf
 	nan := a[2].as_f64()?
 	assert nan != nan
 	assert doc.str().contains('#inf')
-	assert parse(doc.str())!.equals(doc)
+	assert kdl.parse(doc.str())!.equals(doc)
 }
 
 fn test_keyword_followed_by_nbsp() {
-	doc := parse('v #inf\u00a0test')!
+	doc := kdl.parse('v #inf\u00a0test')!
 	assert doc.nodes[0].arguments.len == 2
 }
 
 fn test_negative_radix_integers_round_trip() {
-	doc := parse('v -0xFF')!
+	doc := kdl.parse('v -0xFF')!
 	assert doc.nodes[0].arg(0).as_int()? == -255
-	doc2 := parse(doc.str())!
+	doc2 := kdl.parse(doc.str())!
 	assert doc2.nodes[0].arg(0).as_int()? == -255
 }
 
@@ -150,30 +163,30 @@ fn test_unicode_escapes() {
 }
 
 fn test_slashdash() {
-	doc := parse('/- commented\nreal "val"')!
+	doc := kdl.parse('/- commented\nreal "val"')!
 	assert doc.nodes.len == 1
 	assert doc.nodes[0].name == 'real'
-	assert parse('node /- 1 2')!.nodes[0].arguments.len == 1
-	doc2 := parse('/- (person)node\nreal "val"')!
+	assert kdl.parse('node /- 1 2')!.nodes[0].arguments.len == 1
+	doc2 := kdl.parse('/- (person)node\nreal "val"')!
 	assert doc2.nodes.map(it.name) == ['real']
-	assert parse('/- a\n/- b\n/- c')!.nodes.len == 0
+	assert kdl.parse('/- a\n/- b\n/- c')!.nodes.len == 0
 }
 
 fn test_slashdash_children_blocks() {
-	assert parse('node /- { child1 } { child2 }')!.nodes[0].children.map(it.name) == ['child2']
-	assert parse('node { child1 } /- { child2 }')!.nodes[0].children.map(it.name) == ['child1']
-	assert parse('node /- { c1 } /- { c2 } { c3 }')!.nodes[0].children.map(it.name) == ['c3']
-	assert parse('node /- { child1 }')!.nodes[0].children.len == 0
+	assert kdl.parse('node /- { child1 } { child2 }')!.nodes[0].children.map(it.name) == ['child2']
+	assert kdl.parse('node { child1 } /- { child2 }')!.nodes[0].children.map(it.name) == ['child1']
+	assert kdl.parse('node /- { c1 } /- { c2 } { c3 }')!.nodes[0].children.map(it.name) == ['c3']
+	assert kdl.parse('node /- { child1 }')!.nodes[0].children.len == 0
 }
 
 fn test_slashdash_entries() {
-	doc := parse('node /- 1 /- key=val /- 2 3')!
+	doc := kdl.parse('node /- 1 /- key=val /- 2 3')!
 	assert doc.nodes[0].arguments.len == 1
 	assert doc.nodes[0].properties.len == 0
-	doc2 := parse('node /- arg /- 1 2')!
+	doc2 := kdl.parse('node /- arg /- 1 2')!
 	assert doc2.nodes[0].arguments.len == 1
 	assert doc2.nodes[0].arg(0).as_int()? == 2
-	doc3 := parse('node /-\n  1 2')!
+	doc3 := kdl.parse('node /-\n  1 2')!
 	assert doc3.nodes[0].arguments.len == 1
 	assert doc3.nodes[0].arg(0).as_int()? == 2
 }
@@ -216,26 +229,26 @@ fn test_invalid_numbers() {
 }
 
 fn test_property_type_annotation() {
-	doc := parse('node key=(u8)123')!
+	doc := kdl.parse('node key=(u8)123')!
 	p := doc.nodes[0].prop('key')
 	assert p.ty? == 'u8'
 	assert p.as_int()? == 123
 	out := doc.str()
 	assert out.contains('key=(u8)123')
-	doc2 := parse(out)!
+	doc2 := kdl.parse(out)!
 	assert doc2.nodes[0].prop('key').ty? == 'u8'
 	assert doc2.nodes[0].prop('key').as_int()? == 123
 	regression_rejects('node (u8)key=123')
 }
 
 fn test_node_type_annotation() {
-	assert parse('( u8 )node "val"')!.nodes[0].ty? == 'u8'
+	assert kdl.parse('( u8 )node "val"')!.nodes[0].ty? == 'u8'
 	regression_rejects('()node "val"')
 	regression_rejects([u8(`(`), `\n`, `)`, `n`, `o`, `d`, `e`, ` `, `"`, `v`, `a`, `l`, `"`].bytestr())
-	doc := parse('("foo bar")node "val"')!
+	doc := kdl.parse('("foo bar")node "val"')!
 	out := doc.str()
 	assert out.starts_with('("foo bar")node')
-	assert parse(out)!.nodes[0].ty? == 'foo bar'
+	assert kdl.parse(out)!.nodes[0].ty? == 'foo bar'
 }
 
 fn test_multiline_whitespace_only_lines() {
@@ -266,13 +279,13 @@ fn test_multiline_unicode_whitespace_indent() {
 }
 
 fn test_version_marker() {
-	doc := parse('/- kdl-version 2\nnode "val"')!
+	doc := kdl.parse('/- kdl-version 2\nnode "val"')!
 	assert doc.nodes.map(it.name) == ['node']
 }
 
 fn test_semicolons() {
-	assert parse('node { child1; child2; }')!.nodes[0].children.len == 2
-	assert parse('a;b')!.nodes.len == 2
+	assert kdl.parse('node { child1; child2; }')!.nodes[0].children.len == 2
+	assert kdl.parse('a;b')!.nodes.len == 2
 	// a lone `;` is neither a node nor line-space in the KDL 2.0 grammar
 	regression_rejects('a;;b')
 }
@@ -290,7 +303,7 @@ fn test_floats_with_underscores_and_exponents() {
 	assert regression_first('v 1.0_')!.as_f64()? == 1.0
 	assert regression_first('v 1_e10')!.as_f64()? == 1e10
 	v := regression_first('v 1.23456789e10')!
-	assert parse('v ${v}')!.nodes[0].arg(0).as_f64()? == v.as_f64()?
+	assert kdl.parse('v ${v}')!.nodes[0].arg(0).as_f64()? == v.as_f64()?
 }
 
 fn test_zero_in_all_bases() {
@@ -300,12 +313,12 @@ fn test_zero_in_all_bases() {
 }
 
 fn test_signed_and_dotted_identifiers() {
-	assert parse('+..')!.nodes[0].name == '+..'
-	assert parse('+.foo')!.nodes[0].name == '+.foo'
-	doc := parse('+')!
+	assert kdl.parse('+..')!.nodes[0].name == '+..'
+	assert kdl.parse('+.foo')!.nodes[0].name == '+.foo'
+	doc := kdl.parse('+')!
 	assert doc.nodes[0].name == '+'
 	assert doc.nodes[0].arguments.len == 0
-	assert parse('+abc')!.nodes[0].arguments.len == 0
+	assert kdl.parse('+abc')!.nodes[0].arguments.len == 0
 }
 
 fn test_whitespace_escape_in_quoted_string() {
@@ -314,21 +327,21 @@ fn test_whitespace_escape_in_quoted_string() {
 }
 
 fn test_string_node_names_and_keys() {
-	doc := parse('#"my node"# "val"')!
+	doc := kdl.parse('#"my node"# "val"')!
 	assert doc.nodes[0].name == 'my node'
 	assert doc.nodes[0].arguments.len == 1
-	doc2 := parse('(person)#"full name"# "Bob"')!
+	doc2 := kdl.parse('(person)#"full name"# "Bob"')!
 	assert doc2.nodes[0].ty? == 'person'
 	assert doc2.nodes[0].name == 'full name'
-	assert parse('"my\\"node" "val"')!.nodes[0].name == 'my"node'
-	assert parse('"my\tname" "val"')!.nodes[0].name == 'my\tname'
-	assert parse('node #"my key"#=42')!.nodes[0].prop('my key').as_int()? == 42
-	assert parse('node "my key"="val"')!.nodes[0].prop('my key').as_string()? == 'val'
+	assert kdl.parse('"my\\"node" "val"')!.nodes[0].name == 'my"node'
+	assert kdl.parse('"my\tname" "val"')!.nodes[0].name == 'my\tname'
+	assert kdl.parse('node #"my key"#=42')!.nodes[0].prop('my key').as_int()? == 42
+	assert kdl.parse('node "my key"="val"')!.nodes[0].prop('my key').as_string()? == 'val'
 }
 
 fn test_unicode_identifiers() {
-	assert parse('名前 "value"')!.nodes[0].name == '名前'
-	assert parse('café "val"')!.nodes[0].name == 'café'
+	assert kdl.parse('名前 "value"')!.nodes[0].name == '名前'
+	assert kdl.parse('café "val"')!.nodes[0].name == 'café'
 }
 
 fn test_bidi_controls_in_identifiers_rejected() {
@@ -338,13 +351,13 @@ fn test_bidi_controls_in_identifiers_rejected() {
 }
 
 fn test_line_continuation_contexts() {
-	doc := parse('parent {\n  child \\\n  "val"\n}')!
+	doc := kdl.parse('parent {\n  child \\\n  "val"\n}')!
 	assert doc.nodes[0].children.len == 1
 	assert doc.nodes[0].children[0].name == 'child'
 	assert doc.nodes[0].children[0].arguments.len == 1
-	assert 'key' in parse('node \\\n  key="val"')!.nodes[0].properties
+	assert 'key' in kdl.parse('node \\\n  key="val"')!.nodes[0].properties
 	for src in ['node \\ /* outer /* inner */ still */\n  arg1', 'node \\ /* block */\n  arg1'] {
-		d := parse(src)!
+		d := kdl.parse(src)!
 		assert d.nodes.len == 1
 		assert d.nodes[0].name == 'node'
 		assert d.nodes[0].arguments.len == 1
@@ -352,7 +365,7 @@ fn test_line_continuation_contexts() {
 }
 
 fn test_duplicate_property_keys_last_wins() {
-	doc := parse('node a=1 a=#true a="str"')!
+	doc := kdl.parse('node a=1 a=#true a="str"')!
 	assert doc.nodes[0].properties.len == 1
 	assert doc.nodes[0].prop('a').as_string()? == 'str'
 }
@@ -366,7 +379,7 @@ fn test_deeply_nested_children() {
 		'a{b{c{d{e{f}}}}}':                5
 		'a{b{c{d{e{f{g{h{i{j{k}}}}}}}}}}': 10
 	} {
-		doc := parse(src)!
+		doc := kdl.parse(src)!
 		mut node := doc.nodes[0]
 		mut depth := 0
 		for node.children.len > 0 {
@@ -383,11 +396,11 @@ fn test_reserved_type_annotations_are_kept() {
 		'node (base64)"SGVsbG8="', 'node (regex)".*"', 'node (duration)"PT1H30M"',
 		'node (currency)"USD"', 'node (hostname)"example.com"', 'node (decimal)"123.456"',
 		'node (country-2)"US"', 'node (country-3)"USA"', 'node (url-template)"https://{host}/path"'] {
-		doc := parse(src)!
+		doc := kdl.parse(src)!
 		ty := doc.nodes[0].arg(0).ty?
 		assert src.contains('(${ty})')
 	}
-	assert parse('(published)date "2024-01-01"')!.nodes[0].ty? == 'published'
+	assert kdl.parse('(published)date "2024-01-01"')!.nodes[0].ty? == 'published'
 }
 
 fn test_keywords_are_case_sensitive() {
@@ -403,7 +416,7 @@ fn test_raw_strings_with_hashes() {
 }
 
 fn test_arguments_and_properties_are_separated() {
-	doc := parse('node 1 key=val 2')!
+	doc := kdl.parse('node 1 key=val 2')!
 	n := doc.nodes[0]
 	assert n.arguments.len == 2
 	assert n.arg(0).as_int()? == 1
@@ -412,7 +425,7 @@ fn test_arguments_and_properties_are_separated() {
 }
 
 fn test_colon_is_identifier_character() {
-	doc := parse('node key:value')!
+	doc := kdl.parse('node key:value')!
 	assert doc.nodes[0].arguments.len == 1
 	assert doc.nodes[0].properties.len == 0
 	assert doc.nodes[0].arg(0).as_string()? == 'key:value'
@@ -420,7 +433,7 @@ fn test_colon_is_identifier_character() {
 
 fn test_identifier_ascii_punctuation() {
 	for src in ['@name', 'a@b', 'a|b', "a'b", 'a`b', ':name', 'a:b'] {
-		doc := parse(src)!
+		doc := kdl.parse(src)!
 		assert doc.nodes.len == 1
 		assert doc.nodes[0].name == src
 		assert is_bare_identifier(src)
@@ -442,21 +455,21 @@ fn test_invalid_escapes_rejected() {
 }
 
 fn test_u0080_round_trip() {
-	doc := parse('node "\u0080 x"')!
-	doc2 := parse(doc.str())!
+	doc := kdl.parse('node "\u0080 x"')!
+	doc2 := kdl.parse(doc.str())!
 	assert doc2.nodes[0].arg(0).as_string()? == '\u0080 x'
 }
 
 fn test_writer_keeps_u0080_and_escapes_u0085() {
-	q0080 := Value{
+	q0080 := kdl.Value{
 		data: '\u0080 x'
 	}.str()
 	assert q0080 == '"\u0080 x"'
-	q0085 := Value{
+	q0085 := kdl.Value{
 		data: '\u0085'
 	}.str()
 	assert q0085 == '"\\u{85}"'
-	assert parse('node ' + q0085)!.nodes[0].arg(0).as_string()? == '\u0085'
+	assert kdl.parse('node ' + q0085)!.nodes[0].arg(0).as_string()? == '\u0085'
 }
 
 fn test_entries_require_node_space() {
@@ -466,32 +479,32 @@ fn test_entries_require_node_space() {
 }
 
 fn test_block_comment_with_newline_is_node_space() {
-	doc := parse('node /*\n*/ arg')!
+	doc := kdl.parse('node /*\n*/ arg')!
 	assert doc.nodes.len == 1
 	assert doc.nodes[0].arguments.len == 1
 	assert doc.nodes[0].arg(0).as_string()? == 'arg'
 }
 
 fn test_negative_nan_is_identifier() {
-	doc := parse('node -nan')!
+	doc := kdl.parse('node -nan')!
 	assert doc.nodes[0].arg(0).as_string()? == '-nan'
 	assert doc.str().contains('-nan')
 }
 
 fn test_integers_outside_i64() {
-	// The spec sets no range for numbers; this module keeps integers outside i64 exactly, as BigInt.
-	doc := parse('v 9223372036854775808 -9223372036854775809 0x8000000000000000 -0x8000000000000001')!
+	// The spec sets no range for numbers; this module keeps integers outside i64 exactly, as kdl.BigInt.
+	doc := kdl.parse('v 9223372036854775808 -9223372036854775809 0x8000000000000000 -0x8000000000000001')!
 	a := doc.nodes[0].arguments
-	assert (a[0].data as BigInt).str() == '9223372036854775808'
-	assert (a[1].data as BigInt).str() == '-9223372036854775809'
-	assert (a[2].data as BigInt).str() == '9223372036854775808'
-	assert (a[3].data as BigInt).str() == '-9223372036854775809'
-	doc2 := parse('v -9223372036854775808 -0x8000000000000000 -0b1000000000000000000000000000000000000000000000000000000000000000 -0o1000000000000000000000')!
+	assert (a[0].data as kdl.BigInt).str() == '9223372036854775808'
+	assert (a[1].data as kdl.BigInt).str() == '-9223372036854775809'
+	assert (a[2].data as kdl.BigInt).str() == '9223372036854775808'
+	assert (a[3].data as kdl.BigInt).str() == '-9223372036854775809'
+	doc2 := kdl.parse('v -9223372036854775808 -0x8000000000000000 -0b1000000000000000000000000000000000000000000000000000000000000000 -0o1000000000000000000000')!
 	for v in doc2.nodes[0].arguments {
 		assert v.as_int()? == min_i64
 	}
-	assert parse(doc2.str())!.equals(doc2)
-	assert parse(doc.str())!.equals(doc)
+	assert kdl.parse(doc2.str())!.equals(doc2)
+	assert kdl.parse(doc.str())!.equals(doc)
 }
 
 fn test_document_must_be_valid_utf8() {
