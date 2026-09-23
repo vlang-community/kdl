@@ -4,8 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
   workflow_dispatch:
+  schedule:
+    # V master moves every day: catch a compiler change that breaks the module
+    - cron: '0 5 * * 1'
 
 permissions:
   contents: read
@@ -16,18 +18,94 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    name: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+        # the checkout is in deps/kdl, and deps is VMODULES: `import kdl` resolves to
+        # the code under test, never to a copy installed elsewhere
+        working-directory: deps/kdl
+    env:
+      VMODULES: ${{ github.workspace }}/deps
+      # fail instead of retrying silently with V's compatibility compiler
+      V_MACOS_V3_NO_FALLBACK: '1'
     steps:
       - uses: actions/checkout@v7
+        with:
+          path: deps/kdl
 
-      - name: Setup V
+      - name: Set up V master
+        id: setup_v
         uses: vlang/setup-v@v1.7
         with:
-          # The 0.5.2 release tag fails to build itself on ubuntu-latest
-          # (vlib os C.open declaration conflict), so pin a known-good
-          # master commit instead.
-          version: aaaf0c7
+          check-latest: true
 
-      - name: Run tests
-        run: v test .
+      - name: V version
+        run: |
+          v version
+          echo "V master resolved by setup-v: ${{ steps.setup_v.outputs.version }}"
+          echo "V: $(v version), setup-v version: ${{ steps.setup_v.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Formatting
+        run: v fmt -verify .
+
+      - name: Vet
+        run: v vet .
+
+      - name: Documentation of public symbols
+        run: v missdoc --verify .
+
+      - name: Tests
+        run: v -stats test .
+
+      - name: Examples
+        run: |
+          for dir in examples/*/; do
+            echo "::group::${dir}"
+            v run "${dir}main.v"
+            echo "::endgroup::"
+          done
+
+      - name: README code blocks compile
+        # the 100-column limit of check-md is not a rule of this repository
+        run: v check-md -silent -hide-warnings -skip-line-length-check README.md examples
+
+  old-compiler:
+    # V's previous compiler is still what `-old-compiler` and the compatibility
+    # fallback use, and it compiles generics and GC roots differently
+    name: ubuntu-latest, old compiler
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+        working-directory: deps/kdl
+    env:
+      VMODULES: ${{ github.workspace }}/deps
+      V_C_ERROR_BUG_REPORT_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: deps/kdl
+
+      - name: Set up V master
+        uses: vlang/setup-v@v1.7
+        with:
+          check-latest: true
+
+      - name: Tests
+        run: v -old-compiler -stats test .
+
+      - name: Examples
+        run: |
+          for dir in examples/*/; do
+            echo "::group::${dir}"
+            v -old-compiler run "${dir}main.v"
+            echo "::endgroup::"
+          done

@@ -1,0 +1,4 @@
+# LF everywhere: Windows runners check out with autocrlf, which fails `v fmt -verify`
+* text=auto eol=lf
+# the official test cases are byte-exact fixtures, some contain CR and CRLF on purpose
+tests/test_cases/** -text

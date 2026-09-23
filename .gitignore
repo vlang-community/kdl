@@ -1,0 +1,8 @@
+# compiled programs and build artefacts
+*.exe
+*.o
+*.so
+*.dylib
+*.dll
+*.dSYM/
+examples/*/main
