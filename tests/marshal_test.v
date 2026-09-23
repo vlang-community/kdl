@@ -1,5 +1,6 @@
-module kdl
+module main
 
+import kdl
 import math
 
 enum Mode {
@@ -82,11 +83,11 @@ ratio 0.5
 '
 
 fn test_encode() {
-	assert encode(sample_config(), rename: .kebab_case)! == sample_text
+	assert kdl.encode(sample_config(), rename: .kebab_case)! == sample_text
 }
 
 fn test_decode() {
-	cfg := decode[Config](sample_text, rename: .kebab_case)!
+	cfg := kdl.decode[Config](sample_text, rename: .kebab_case)!
 	assert cfg == Config{
 		...sample_config()
 		secret: ''
@@ -98,11 +99,11 @@ fn test_round_trip() {
 		...sample_config()
 		secret: ''
 	}
-	assert decode[Config](encode(cfg)!)! == cfg
+	assert kdl.decode[Config](kdl.encode(cfg)!)! == cfg
 }
 
 fn test_absent_fields_keep_defaults() {
-	cfg := decode[Config]('name x\nunknown-node 1 2 { child }')!
+	cfg := kdl.decode[Config]('name x\nunknown-node 1 2 { child }')!
 	assert cfg.name == 'x'
 	assert cfg.max_connections == 100
 	assert cfg.mode == .dev
@@ -112,14 +113,14 @@ fn test_absent_fields_keep_defaults() {
 }
 
 fn test_unknown_properties_are_ignored() {
-	cfg := decode[Config]('server port=1 color=blue')!
+	cfg := kdl.decode[Config]('server port=1 color=blue')!
 	assert cfg.server.port == 1
 }
 
 fn test_decode_node() {
-	doc := parse('app { server host=localhost port=80 { route "/" } }')!
+	doc := kdl.parse('app { server host=localhost port=80 { route "/" } }')!
 	app := doc.get('app')?
-	server := decode_node[Server](app.child('server')?)!
+	server := kdl.decode_node[Server](app.child('server')?)!
 	assert server.host == 'localhost'
 	assert server.port == 80
 	assert server.routes == [Route{
@@ -161,10 +162,10 @@ fn test_arguments_and_omitempty() {
 			active: true
 		}
 	}
-	text := encode(team)!
+	text := kdl.encode(team)!
 	assert text == 'staff Bob Smith age=76\nstaff Ann Lee age=41\nitems a b c\nprofile active=#true name=Jane\n'
-	assert decode[Team](text)! == team
-	assert decode_node[Staff](parse('StaffDec Bob Smith age=76')!.nodes[0])! == Staff{'Bob', 'Smith', 76}
+	assert kdl.decode[Team](text)! == team
+	assert kdl.decode_node[Staff](kdl.parse('StaffDec Bob Smith age=76')!.nodes[0])! == Staff{'Bob', 'Smith', 76}
 }
 
 struct Numbers {
@@ -179,7 +180,7 @@ struct Numbers {
 }
 
 fn test_integer_ranges() {
-	n := decode[Numbers]('a -128\nb 255\nc 18446744073709551615\nd -9223372036854775808\ne 1.5\nf 3\ng 0x10\nh #null')!
+	n := kdl.decode[Numbers]('a -128\nb 255\nc 18446744073709551615\nd -9223372036854775808\ne 1.5\nf 3\ng 0x10\nh #null')!
 	assert n.a == -128
 	assert n.b == 255
 	assert n.c == max_u64
@@ -188,14 +189,14 @@ fn test_integer_ranges() {
 	assert n.f == 3.0
 	assert n.g == 16
 	assert n.h == none
-	assert encode(n)! == 'a -128\nb 255\nc 18446744073709551615\nd -9223372036854775808\ne 1.5\nf 3.0\ng 16\n'
-	assert decode[Numbers](encode(n)!)! == n
+	assert kdl.encode(n)! == 'a -128\nb 255\nc 18446744073709551615\nd -9223372036854775808\ne 1.5\nf 3.0\ng 16\n'
+	assert kdl.decode[Numbers](kdl.encode(n)!)! == n
 }
 
-fn expect_error[T](src string, kind MarshalErrorKind, msg string) {
-	decode[T](src) or {
-		assert err is MarshalError
-		e := err as MarshalError
+fn expect_error[T](src string, kind kdl.MarshalErrorKind, msg string) {
+	kdl.decode[T](src) or {
+		assert err is kdl.MarshalError
+		e := err as kdl.MarshalError
 		assert e.kind == kind, err.msg()
 		assert err.msg() == msg, err.msg()
 		return
@@ -212,9 +213,9 @@ fn test_big_integers_do_not_become_infinity() {
 	big := '1' + '0'.repeat(400)
 	expect_error[Floats]('a ${big}', .out_of_range, 'a: ${big} does not fit in f32')
 	expect_error[Floats]('b ${big}', .out_of_range, 'b: ${big} does not fit in f64')
-	inf := decode[Floats]('a #inf\nb #-inf')!
+	inf := kdl.decode[Floats]('a #inf\nb #-inf')!
 	assert math.is_inf(inf.a, 1) && math.is_inf(inf.b, -1)
-	assert decode[Floats]('b 99999999999999999999')!.b == 1e20
+	assert kdl.decode[Floats]('b 99999999999999999999')!.b == 1e20
 }
 
 struct EmptyName {
@@ -222,8 +223,8 @@ struct EmptyName {
 }
 
 fn test_empty_name_in_tag() {
-	assert encode(Wrap[EmptyName]{})! == 'inner\n'
-	assert encode(Wrap[EmptyName]{EmptyName{'x'}})! == 'inner note=x\n'
+	assert kdl.encode(Wrap[EmptyName]{})! == 'inner\n'
+	assert kdl.encode(Wrap[EmptyName]{EmptyName{'x'}})! == 'inner note=x\n'
 }
 
 fn test_decode_errors() {
@@ -239,7 +240,7 @@ fn test_decode_errors() {
 	expect_error[Numbers]('g 1 x=2', .unexpected, 'g: unexpected property `x`')
 	expect_error[Numbers]('g 1 { x }', .unexpected, 'g: unexpected child node `x`')
 	expect_error[Numbers]('g 1\ng 2', .duplicate, 'g: node `g` appears more than once')
-	expect_error[Config]('mode staging', .invalid_value, 'mode: `staging` is not a kdl.Mode variant')
+	expect_error[Config]('mode staging', .invalid_value, 'mode: `staging` is not a Mode variant')
 	expect_error[Config]('server port=x', .type_mismatch, 'server.port: expected u16, got string')
 	expect_error[Config]('server { route "/" timeout=#true }', .type_mismatch, 'server.route[0].timeout: expected f64, got boolean')
 	expect_error[Config]('server { route "/" "/extra" }', .unexpected, 'server.route[0]: unexpected argument 2: "/extra"')
@@ -249,8 +250,8 @@ fn test_decode_errors() {
 }
 
 fn test_parse_errors_are_not_marshal_errors() {
-	decode[Config]('name "a') or {
-		assert err is ParseError
+	kdl.decode[Config]('name "a') or {
+		assert err is kdl.ParseError
 		return
 	}
 	assert false
@@ -258,8 +259,8 @@ fn test_parse_errors_are_not_marshal_errors() {
 
 fn test_schema_is_checked_before_the_text() {
 	// an invalid struct is reported even when the text is malformed
-	decode[BadNested]('name "a') or {
-		assert err is MarshalError
+	kdl.decode[BadNested]('name "a') or {
+		assert err is kdl.MarshalError
 		assert err.msg() == 'a: unsupported field type [][]int'
 		return
 	}
@@ -278,12 +279,12 @@ fn test_options_keep_explicit_zero_values() {
 		label:   ''
 		verbose: false
 	}
-	text := encode(x)!
+	text := kdl.encode(x)!
 	assert text == 'retries 0\nlabel ""\nverbose #false\n'
-	assert decode[OptionalDefaults](text)! == x
-	assert encode(OptionalDefaults{})! == 'retries 3\n' // the default of the option is a value
-	assert decode[OptionalDefaults]('')!.retries? == 3
-	assert decode[OptionalDefaults]('retries #null')!.retries == none
+	assert kdl.decode[OptionalDefaults](text)! == x
+	assert kdl.encode(OptionalDefaults{})! == 'retries 3\n' // the default of the option is a value
+	assert kdl.decode[OptionalDefaults]('')!.retries? == 3
+	assert kdl.decode[OptionalDefaults]('retries #null')!.retries == none
 }
 
 struct EnumDefault {
@@ -294,8 +295,8 @@ fn test_omitempty_never_omits_an_enum() {
 	x := EnumDefault{
 		mode: .dev
 	}
-	assert encode(x)! == 'mode dev\n'
-	assert decode[EnumDefault](encode(x)!)! == x
+	assert kdl.encode(x)! == 'mode dev\n'
+	assert kdl.decode[EnumDefault](kdl.encode(x)!)! == x
 }
 
 struct Sub {
@@ -310,20 +311,20 @@ struct OptionalSub {
 }
 
 fn test_optional_struct_keeps_its_defaults() {
-	assert decode[OptionalSub]('child name=x')!.child? == Sub{'x', 10}
-	assert decode[OptionalSub]('child name=x timeout=5')!.child? == Sub{'x', 5}
-	assert decode[OptionalSub]('')!.child? == Sub{'', 10}
-	assert decode[OptionalSub]('child #null')!.child == none
-	assert decode[NullableStruct]('tls #true')!.tls? == Tls{
+	assert kdl.decode[OptionalSub]('child name=x')!.child? == Sub{'x', 10}
+	assert kdl.decode[OptionalSub]('child name=x timeout=5')!.child? == Sub{'x', 5}
+	assert kdl.decode[OptionalSub]('')!.child? == Sub{'', 10}
+	assert kdl.decode[OptionalSub]('child #null')!.child == none
+	assert kdl.decode[NullableStruct]('tls #true')!.tls? == Tls{
 		enabled: true
 	}
 }
 
 fn test_f32_underflow() {
-	assert decode[Floats]('a 1e-45')!.a != 0
-	assert decode[Floats]('a 1.1')!.a == f32(1.1)
-	assert decode[Floats]('a 0.0')!.a == 0
-	assert decode[Floats]('a -0.0')!.a == 0
+	assert kdl.decode[Floats]('a 1e-45')!.a != 0
+	assert kdl.decode[Floats]('a 1.1')!.a == f32(1.1)
+	assert kdl.decode[Floats]('a 0.0')!.a == 0
+	assert kdl.decode[Floats]('a -0.0')!.a == 0
 	expect_error[Floats]('a 1e-50', .out_of_range, 'a: 1E-50 does not fit in f32')
 	expect_error[Floats]('a -1e-50', .out_of_range, 'a: -1E-50 does not fit in f32')
 }
@@ -338,13 +339,13 @@ struct WithProps {
 }
 
 fn test_props_collects_the_remaining_properties() {
-	w := decode[WithProps]('item name=x a=1 b=2')!
+	w := kdl.decode[WithProps]('item name=x a=1 b=2')!
 	assert w.item.name == 'x'
 	assert w.item.extra == {
 		'a': 1
 		'b': 2
 	}
-	assert encode(w)! == 'item a=1 b=2 name=x\n'
+	assert kdl.encode(w)! == 'item a=1 b=2 name=x\n'
 	clash := WithProps{
 		item: Props{
 			name:  'x'
@@ -353,7 +354,7 @@ fn test_props_collects_the_remaining_properties() {
 			}
 		}
 	}
-	encode(clash) or {
+	kdl.encode(clash) or {
 		assert err.msg() == 'item.extra: key `name` is also the name of a property field'
 		return
 	}
@@ -376,9 +377,9 @@ fn test_child_tag() {
 			depth: 3
 		}
 	}
-	assert encode(w)! == 'log {\n    level info\n    depth 3\n}\n'
-	assert decode[WithChild](encode(w)!)! == w
-	assert decode[WithChild]('log { depth #null }')!.log.depth == none
+	assert kdl.encode(w)! == 'log {\n    level info\n    depth 3\n}\n'
+	assert kdl.decode[WithChild](kdl.encode(w)!)! == w
+	assert kdl.decode[WithChild]('log { depth #null }')!.log.depth == none
 }
 
 struct Tree {
@@ -392,9 +393,9 @@ struct Forest {
 
 fn test_recursive_types() {
 	src := 'node root {\n    node a {\n        node b\n    }\n    node c\n}\n'
-	f := decode[Forest](src)!
+	f := kdl.decode[Forest](src)!
 	assert f.node[0].children[0].children[0].name == 'b'
-	assert encode(f)! == src
+	assert kdl.encode(f)! == src
 }
 
 struct Renamed {
@@ -407,13 +408,13 @@ fn test_rename() {
 		max_connections: 5
 		api_key:         'k'
 	}
-	assert encode(r)! == 'max_connections 5\nAPI k\n'
-	assert encode(r, rename: .kebab_case)! == 'max-connections 5\nAPI k\n'
-	assert encode(r, rename: .camel_case)! == 'maxConnections 5\nAPI k\n'
-	assert encode(r, rename: .pascal_case)! == 'MaxConnections 5\nAPI k\n'
-	assert encode(r, rename: .screaming_snake_case)! == 'MAX_CONNECTIONS 5\nAPI k\n'
-	assert decode[Renamed]('maxConnections 5', rename: .camel_case)!.max_connections == 5
-	assert decode[Renamed]('max-connections 5')!.max_connections == 0
+	assert kdl.encode(r)! == 'max_connections 5\nAPI k\n'
+	assert kdl.encode(r, rename: .kebab_case)! == 'max-connections 5\nAPI k\n'
+	assert kdl.encode(r, rename: .camel_case)! == 'maxConnections 5\nAPI k\n'
+	assert kdl.encode(r, rename: .pascal_case)! == 'MaxConnections 5\nAPI k\n'
+	assert kdl.encode(r, rename: .screaming_snake_case)! == 'MAX_CONNECTIONS 5\nAPI k\n'
+	assert kdl.decode[Renamed]('maxConnections 5', rename: .camel_case)!.max_connections == 5
+	assert kdl.decode[Renamed]('max-connections 5')!.max_connections == 0
 }
 
 struct NullableStruct {
@@ -421,11 +422,11 @@ struct NullableStruct {
 }
 
 fn test_option_struct() {
-	assert decode[NullableStruct]('tls #null')!.tls == none
-	assert decode[NullableStruct]('tls #true')!.tls? == Tls{
+	assert kdl.decode[NullableStruct]('tls #null')!.tls == none
+	assert kdl.decode[NullableStruct]('tls #true')!.tls? == Tls{
 		enabled: true
 	}
-	assert encode(NullableStruct{})! == ''
+	assert kdl.encode(NullableStruct{})! == ''
 }
 
 struct ListDefaults {
@@ -436,10 +437,10 @@ struct ListDefaults {
 }
 
 fn test_lists_replace_defaults() {
-	assert decode[ListDefaults]('')! == ListDefaults{}
-	assert decode[ListDefaults]('tags')!.tags == []
-	assert decode[ListDefaults]('tags a b')!.tags == ['a', 'b']
-	assert decode[ListDefaults]('route "/a"')!.route == [Route{
+	assert kdl.decode[ListDefaults]('')! == ListDefaults{}
+	assert kdl.decode[ListDefaults]('tags')!.tags == []
+	assert kdl.decode[ListDefaults]('tags a b')!.tags == ['a', 'b']
+	assert kdl.decode[ListDefaults]('route "/a"')!.route == [Route{
 		path: '/a'
 	}]
 }
@@ -531,9 +532,9 @@ struct Wrap[T] {
 }
 
 fn expect_schema_error[T](msg string) {
-	decode[T]('') or {
+	kdl.decode[T]('') or {
 		e := // separate binding: the old V compiler miscompiles the cast inside assert
-		err as MarshalError
+		err as kdl.MarshalError
 		assert e.kind == .unsupported
 		assert err.msg() == msg, err.msg()
 		return
@@ -554,12 +555,12 @@ fn test_schema_errors() {
 	expect_schema_error[BadMap]('a: unsupported field type map[int]string, only map[string]scalar is supported')
 	expect_schema_error[BadOptionList]('a: unsupported field type ?[]int')
 	expect_schema_error[BadFixed]('a: unsupported field type [2]int')
-	expect_schema_error[BadPointer]('leaf: unsupported field type &kdl.Leaf')
-	expect_schema_error[BadFlag]('perms: unsupported field type kdl.Perm: flag enums have no single variant name')
-	expect_schema_error[BadListOfPointers]('a: unsupported field type []&kdl.Leaf')
+	expect_schema_error[BadPointer]('leaf: unsupported field type &Leaf')
+	expect_schema_error[BadFlag]('perms: unsupported field type Perm: flag enums have no single variant name')
+	expect_schema_error[BadListOfPointers]('a: unsupported field type []&Leaf')
 	expect_schema_error[BadMapOfFixed]('a: unsupported field type map[string][2]int, only map[string]scalar is supported')
-	assert decode[Wrap[SkipWins]]('inner a=x v=y')! == Wrap[SkipWins]{}
-	encode(BadNested{}) or {
+	assert kdl.decode[Wrap[SkipWins]]('inner a=x v=y')! == Wrap[SkipWins]{}
+	kdl.encode(BadNested{}) or {
 		assert err.msg() == 'a: unsupported field type [][]int'
 		return
 	}
@@ -567,7 +568,7 @@ fn test_schema_errors() {
 }
 
 fn test_root_must_be_a_struct() {
-	encode(42) or {
+	kdl.encode(42) or {
 		assert err.msg() == 'encode needs a struct, got int'
 		return
 	}

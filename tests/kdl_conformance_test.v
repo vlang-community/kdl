@@ -1,5 +1,7 @@
-module kdl
+module main
 
+import kdl
+import math
 import os
 
 // Runs the official KDL test suite, kdl-org/kdl `tests/test_cases` at commit
@@ -10,7 +12,7 @@ import os
 // The canonical form drops comments, sorts properties, writes strings bare when
 // possible and numbers in decimal; see the suite README for the full rules.
 
-const suite_dir = os.join_path(os.dir(@FILE), 'tests', 'test_cases')
+const suite_dir = os.join_path(os.dir(@FILE), 'test_cases')
 
 struct ConformanceCase {
 	name      string
@@ -53,7 +55,7 @@ fn test_official_suite() {
 	mut failures := []string{}
 	for c in cases {
 		name := c.name
-		doc := parse(c.input) or {
+		doc := kdl.parse(c.input) or {
 			if !c.must_fail {
 				failures << '${name}: unexpected parse error: ${err.msg()}'
 			}
@@ -84,9 +86,9 @@ fn test_roundtrip_official_suite() {
 			continue
 		}
 		name := c.name
-		doc := parse(c.input) or { panic('${name}: ${err.msg()}') }
+		doc := kdl.parse(c.input) or { panic('${name}: ${err.msg()}') }
 		text := doc.str()
-		again := parse(text) or { panic('${name}: re-parse failed: ${err.msg()}\n${text}') }
+		again := kdl.parse(text) or { panic('${name}: re-parse failed: ${err.msg()}\n${text}') }
 		assert again.equals(doc), 'round trip changed ${name}'
 		assert again.str() == text, 'second serialisation differs for ${name}'
 		checked++
@@ -183,6 +185,18 @@ fn test_canonical_tokens_respect_quotes() {
 	assert same_modulo_floats('n "a=b"=1.0\n', 'n "a=b"=1.00\n')
 }
 
+// The float oracle must accept only a whole float token: anything the parser
+// would split off (terminator, comment, annotation, keyword) disqualifies it.
+fn test_float_token_classifier() {
+	for s in ['1.0', '-2.5E+10', '1_000.5', '#inf', '#-inf'] {
+		assert is_float_token(s), s
+	}
+	for s in ['', '10', '0x1F', '.5', 'inf', '1.0;', '1.0/*x*/', '1.0//x', '1.0\n', '(t)1.0', '1.0#true',
+		'1.0"', '1.0 2.0', '1.0=2'] {
+		assert !is_float_token(s), s
+	}
+}
+
 fn split_number_tail(tok string) (string, string) {
 	mut i := tok.len - 1
 	for i >= 0 && tok[i] !in [u8(`=`), `)`] {
@@ -201,10 +215,43 @@ fn is_float_token(s string) bool {
 		return false
 	}
 	// the whole token must be a float according to the number grammar, so a
-	// quote or any other trailing character disqualifies it
-	d := parse_number(s) or { return false }
-	return d is f64
+	// quote or any other trailing character disqualifies it. Limited to the
+	// characters of a number, the token is a single identifier-like run that
+	// the parser hands whole to its number grammar: nothing else can be split
+	// off as a comment, a terminator, a property or another value.
+	for c in s {
+		if !(c.is_alnum() || c in [u8(`_`), `.`, `+`, `-`]) {
+			return false
+		}
+	}
+	doc := kdl.parse('n ' + s) or { return false }
+	if doc.nodes.len != 1 || doc.nodes[0].arguments.len != 1 || doc.nodes[0].properties.len != 0
+		|| doc.nodes[0].children.len != 0 {
+		return false
+	}
+	v := doc.nodes[0].arguments[0]
+	return v.ty == none && v.data is f64
 }
+
+// looks_like_number mirrors the rule of the parser: an identifier-like token
+// starting with a digit, a sign and a digit, or a dot and a digit is a number.
+fn looks_like_number(s string) bool {
+	if s == '' {
+		return false
+	}
+	if s[0].is_digit() {
+		return true
+	}
+	if (s[0] == `+` || s[0] == `-`) && s.len > 1 {
+		if s[1].is_digit() {
+			return true
+		}
+		return s[1] == `.` && s.len > 2 && s[2].is_digit()
+	}
+	return s[0] == `.` && s.len > 1 && s[1].is_digit()
+}
+
+const f64_inf = math.inf(1)
 
 fn float_token(s string) f64 {
 	return match s {

@@ -315,9 +315,11 @@ v fmt -verify .
 v vet .
 ```
 
+The sources are grouped by role in `parser/`, `writer/` and `marshal/`, listed as `subdirs` in `v.mod` so that they all belong to module `kdl`, next to the data model in `kdl.v`; the tests use the public API only, from `tests/`. `subdirs` needs a V compiler from April 2026 or later (vlang/v@dc503d6).
+
 The tests run from a checkout in a directory named `kdl`, which V resolves as the module itself. From a directory with another name, make the module importable first, for example with a directory that contains a `kdl` link to the checkout: `VMODULES=/path/to/that/directory v test .`.
 
-`kdl_conformance_test.v` runs the official [kdl-org test suite](https://github.com/kdl-org/kdl/tree/89c1087d5e7f530de328f18b6a0fad54ca8ea227/tests/test_cases) at commit `89c1087`, vendored in [`tests/test_cases`](tests/test_cases): the 95 invalid documents must be rejected, and the 243 valid ones must serialise to the expected canonical form and round-trip. Numbers are compared by value, since floats are stored as `f64` and their notation or out-of-range magnitude is not kept, and the empty document, which the suite writes as a single newline, is written as nothing.
+[`tests/kdl_conformance_test.v`](tests/kdl_conformance_test.v) runs the official [kdl-org test suite](https://github.com/kdl-org/kdl/tree/89c1087d5e7f530de328f18b6a0fad54ca8ea227/tests/test_cases) at commit `89c1087`, vendored in [`tests/test_cases`](tests/test_cases): the 95 invalid documents must be rejected, and the 243 valid ones must serialise to the expected canonical form and round-trip. Numbers are compared by value, since floats are stored as `f64` and their notation or out-of-range magnitude is not kept, and the empty document, which the suite writes as a single newline, is written as nothing.
 
 ## Authors
 

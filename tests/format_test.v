@@ -1,22 +1,24 @@
 // Adapted from tests/format_test.v and tests/document_test.v of github.com/vlang-community/kdl
 // at commit 721a303, by Jengro777.
-module kdl
+module main
 
-fn format_round_trips(doc Document) !Document {
-	back := parse(doc.str())!
+import kdl
+
+fn format_round_trips(doc kdl.Document) !kdl.Document {
+	back := kdl.parse(doc.str())!
 	assert back.equals(doc), doc.str()
 	return back
 }
 
 fn test_format_roundtrip_basic() {
-	doc := parse('my-node 1 2 key="val"')!
+	doc := kdl.parse('my-node 1 2 key="val"')!
 	assert doc.str() == 'my-node 1 2 key=val\n'
 	format_round_trips(doc)!
 }
 
 fn test_format_roundtrip_complex() {
 	src := 'package {\n  name my-pkg\n  version "1.2.3"\n  dependencies {\n    lodash "^3.2.1" optional=#true alias=underscore\n  }\n}'
-	doc := parse(src)!
+	doc := kdl.parse(src)!
 	back := format_round_trips(doc)!
 	assert back.nodes.len == 1
 	assert back.nodes[0].name == 'package'
@@ -24,34 +26,34 @@ fn test_format_roundtrip_complex() {
 }
 
 fn test_format_empty_document() {
-	assert parse('')!.str() == ''
+	assert kdl.parse('')!.str() == ''
 }
 
 fn test_format_children() {
-	doc := parse('parent {\n  child "val"\n}')!
+	doc := kdl.parse('parent {\n  child "val"\n}')!
 	assert doc.str() == 'parent {\n    child val\n}\n'
 	format_round_trips(doc)!
 }
 
 fn test_document_manual_construction() {
-	mut config := Node{
+	mut config := kdl.Node{
 		name: 'config'
 	}
-	config.properties['host'] = Value{
+	config.properties['host'] = kdl.Value{
 		data: 'localhost'
 	}
-	config.properties['port'] = Value{
+	config.properties['port'] = kdl.Value{
 		data: i64(8080)
 	}
-	config.children << Node{
+	config.children << kdl.Node{
 		name:       'logging'
 		properties: {
-			'level': Value{
+			'level': kdl.Value{
 				data: 'info'
 			}
 		}
 	}
-	doc := Document{
+	doc := kdl.Document{
 		nodes: [config]
 	}
 	out := doc.str()
@@ -60,7 +62,7 @@ fn test_document_manual_construction() {
 }
 
 fn test_parse_error_message() {
-	e := ParseError{
+	e := kdl.ParseError{
 		line:    1
 		col:     10
 		offset:  0
@@ -72,13 +74,13 @@ fn test_parse_error_message() {
 
 fn test_write_quoted_escapes_controls() {
 	for s in ['\x01', '\x7f'] {
-		mut node := Node{
+		mut node := kdl.Node{
 			name: 'x'
 		}
-		node.properties['v'] = Value{
+		node.properties['v'] = kdl.Value{
 			data: s
 		}
-		doc := Document{
+		doc := kdl.Document{
 			nodes: [node]
 		}
 		out := doc.str()
@@ -90,13 +92,13 @@ fn test_write_quoted_escapes_controls() {
 }
 
 fn test_write_quoted_c1_control_roundtrip() {
-	mut node := Node{
+	mut node := kdl.Node{
 		name: 'x'
 	}
-	node.properties['v'] = Value{
+	node.properties['v'] = kdl.Value{
 		data: '\u0080'
 	}
-	doc := Document{
+	doc := kdl.Document{
 		nodes: [node]
 	}
 	back := format_round_trips(doc)!
@@ -104,7 +106,7 @@ fn test_write_quoted_c1_control_roundtrip() {
 }
 
 fn test_value_kinds() {
-	doc := parse('v "str" 42 3.14 #true #false #null')!
+	doc := kdl.parse('v "str" 42 3.14 #true #false #null')!
 	a := doc.nodes[0].arguments
 	assert a.len == 6
 	assert a[0].data is string
@@ -117,7 +119,7 @@ fn test_value_kinds() {
 }
 
 fn test_node_property_helpers() {
-	n := parse('config port=8080 host="localhost"')!.nodes[0]
+	n := kdl.parse('config port=8080 host="localhost"')!.nodes[0]
 	assert 'port' in n.properties
 	assert 'missing' !in n.properties
 	assert n.properties.len > 0
